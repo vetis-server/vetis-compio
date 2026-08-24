@@ -5,7 +5,7 @@ use http::Version;
 use log::{error, info};
 use std::{collections::HashMap, sync::Arc};
 use vetis::{
-    errors::{HostError, ListenerError, VetisError},
+    errors::{HostError, VetisError},
     host::{Host, HostConfig},
     listener::Listener as _,
     server::ServerConfig,
@@ -13,10 +13,10 @@ use vetis::{
 };
 
 #[derive(Default)]
-/// Main server instance that manages virtual hosts and listeners.
+/// Main server instance that manages hosts and listeners.
 ///
 /// The `Vetis` struct is the core of the VeTiS server. It handles:
-/// - Managing multiple virtual hosts
+/// - Managing multiple hosts
 /// - Coordinating server listeners
 /// - Starting and stopping the server
 /// - Signal handling for graceful shutdown
@@ -70,15 +70,15 @@ impl Vetis {
 }
 
 impl VetisServer for Vetis {
-    /// Virtual host type
+    /// Host type
     type Host = HostImpl;
-    /// Virtual host configuration type
+    /// Host configuration type
     type HostConfig = HostConfig;
 
-    /// Adds a virtual host to the server.
+    /// Adds a host to the server.
     ///
-    /// Virtual hosts allow you to host multiple domains on a single server instance.
-    /// Each virtual host is identified by its hostname and port combination.
+    /// Hosts allow you to host multiple domains on a single server instance.
+    /// Each host is identified by its hostname and port combination.
     ///
     /// # Arguments
     ///
@@ -131,12 +131,12 @@ impl VetisServer for Vetis {
             .insert(Arc::from(host.hostname()), host);
     }
 
-    /// Remove a virtual host from the server
+    /// Remove a host from the server
     ///
     /// # Arguments
     ///
-    /// * `hostname` - The hostname of the virtual host to remove
-    /// * `port` - The port of the virtual host to remove
+    /// * `hostname` - The hostname of the host to remove
+    /// * `port` - The port of the host to remove
     ///
     /// # Examples
     ///
@@ -179,14 +179,14 @@ impl VetisServer for Vetis {
     /// Starts the server and runs until interrupted.
     ///
     /// This method combines `start()` and graceful shutdown handling:
-    /// 1. Starts the server with all configured virtual hosts
+    /// 1. Starts the server with all configured hosts
     /// 2. Listens for shutdown signals (Ctrl+C on Tokio, SIGQUIT on Smol)
     /// 3. Stops the server gracefully
     ///
     /// # Errors
     ///
     /// Returns an error if:
-    /// - No virtual hosts have been added
+    /// - No hosts have been added
     /// - Server fails to start
     /// - Server fails to stop
     ///
@@ -234,7 +234,7 @@ impl VetisServer for Vetis {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - No virtual hosts have been added
+    /// - No hosts have been added
     /// - Server fails to bind to configured addresses
     /// - TLS configuration fails
     ///
@@ -249,7 +249,7 @@ impl VetisServer for Vetis {
     ///     let config = ServerConfig::builder().build()?;
     ///     let mut server = Vetis::new(config);
     ///
-    ///     // Add virtual hosts...
+    ///     // Add hosts...
     ///
     ///     server.start().await?;
     ///
@@ -261,21 +261,12 @@ impl VetisServer for Vetis {
     /// ```
     async fn start(&mut self) -> VetisResult<()> {
         if self
-            .config
-            .listeners()
-            .is_empty()
-        {
-            error!("You must add at least one listener");
-            return Err(VetisError::Listener(ListenerError::NoListeners));
-        }
-
-        if self
             .hosts
             .read()
             .await
             .is_empty()
         {
-            error!("You must add at least one virtual host");
+            error!("You must add at least one host");
             return Err(VetisError::Host(HostError::NoHosts));
         }
 
@@ -349,6 +340,13 @@ impl VetisServer for Vetis {
     /// }
     /// ```
     async fn stop(&mut self) -> VetisResult<()> {
+        if self
+            .listeners
+            .is_empty()
+        {
+            return Err(VetisError::Stop("Vetis is not running".to_string()));
+        }
+
         for listener in &mut self.listeners {
             listener
                 .stop()

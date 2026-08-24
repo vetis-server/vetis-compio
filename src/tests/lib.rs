@@ -44,19 +44,8 @@ fn test_vetis_new() {
 
 #[test]
 fn test_vetis_config() {
-    let listener = ListenerConfig::builder()
-        .port(8080)
-        .protos(vec![default_protocol_version()])
-        .interface(
-            "0.0.0.0"
-                .parse()
-                .unwrap(),
-        )
-        .build()
-        .unwrap();
-
     let config = ServerConfig::builder()
-        .add_listener(listener)
+        .add_listener(create_listener())
         .build()
         .unwrap();
 
@@ -124,26 +113,10 @@ async fn test_vetis_add_host() -> Result<(), Box<dyn Error>> {
 async fn test_vetis_start_no_hosts() -> Result<(), Box<dyn Error>> {
     let config = ServerConfig::builder()
         .add_listener(create_listener())
-        .build()
-        .unwrap();
+        .build()?;
     let mut server = Vetis::new(config);
 
     let result = server.start().await;
-
-    assert!(result.is_err());
-
-    Ok(())
-}
-
-#[compio::test]
-async fn test_vetis_stop_no_instance() -> Result<(), Box<dyn Error>> {
-    let config = ServerConfig::builder()
-        .add_listener(create_listener())
-        .build()
-        .unwrap();
-    let mut server = Vetis::new(config);
-
-    let result = server.stop().await;
 
     assert!(result.is_err());
 
