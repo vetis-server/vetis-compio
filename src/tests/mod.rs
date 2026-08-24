@@ -1,7 +1,6 @@
 #![allow(unreachable_code, dead_code)]
 use http::Version;
 
-mod config;
 mod host;
 mod lib;
 mod paths;
