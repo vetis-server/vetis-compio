@@ -17,10 +17,14 @@ use hyper::server::conn::http1;
 use hyper::server::conn::http2;
 use hyper::{body::Incoming, service::service_fn};
 use hyper_body_utils::HttpBody;
+use hyper_util::server::conn::auto;
 use log::{debug, error, info};
 use send_wrapper::SendWrapper;
 use std::{borrow::Cow, collections::HashMap, net::SocketAddr, sync::Arc};
-use vetis::{errors::VetisError, host::Host, listener::ListenerConfig, Request, VetisResult};
+use vetis::{
+    errors::VetisError, host::Host, listener::ListenerConfig, server::http::HttpService, Request,
+    VetisResult,
+};
 
 /// TCP listener
 pub struct TcpListener {
@@ -119,10 +123,11 @@ impl TcpListener {
             }
         };
 
-        let http11_only = self
+        let allow_plain_connection = self
             .config
             .protos()
-            .contains(&Version::HTTP_11);
+            .iter()
+            .any(|v| *v == Version::HTTP_11 && *v == Version::HTTP_2);
 
         let tls_acceptor = TlsAcceptor::from(Arc::new(tls_config));
         let future = async move {
@@ -194,19 +199,32 @@ impl TcpListener {
                         }
                     }
                 } else {
-                    #[cfg(feature = "http1")]
+                    // Insecure connections are only allowed for HTTP/1.1 and 2
+                    #[cfg(any(feature = "http1", feature = "http2"))]
                     {
-                        let io = HyperStream::new_plain(stream);
-                        if http11_only {
-                            let _ = handle_http1_request(io, hosts.clone(), client_addr);
-                        } else {
-                            panic!("Unsupported protocol");
+                        if allow_plain_connection {
+                            let service = HttpService::new(hosts.clone(), client_addr);
+                            compio::runtime::spawn(async move {
+                                let result = auto::Builder::new(CompioExecutor)
+                                    .serve_connection_with_upgrades(
+                                        HyperStream::new_plain(stream),
+                                        service,
+                                    )
+                                    .await;
+                                match result {
+                                    Err(e) => {
+                                        error!("Error while processing request: {}", e.to_string())
+                                    }
+                                    Ok(()) => {}
+                                }
+                            })
+                            .detach();
                         }
                     }
 
-                    #[cfg(any(feature = "http2", feature = "http3"))]
+                    #[cfg(feature = "http3")]
                     {
-                        panic!("Unsupported protocol");
+                        panic!("Insecure connections are only allowed with HTTP/1.1 and H2 (H2C)");
                     }
                 }
             }
