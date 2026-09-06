@@ -2443,9 +2443,9 @@ dependencies = [
 
 [[package]]
 name = "vetis-macros"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dcb9694fb1b13d3367e15cb5400983102f0078697d444c74d97a5210a7ee518"
+checksum = "9f16d20e38e974aca9a10f59fb16d7c7c57b5487b4f6971d151bb2aaac8fbd4b"
 dependencies = [
  "proc-macro2",
  "quote",
